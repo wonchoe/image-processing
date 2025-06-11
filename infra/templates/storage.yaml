@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Storage, Params, Secrets, SQS, EventBridge для image-processing
+
+Resources:
+  StorageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-${AWS::Region}-${AWS::AccountId}-data'
+      VersioningConfiguration:
+        Status: Enabled
+
+  StorageBucketParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/storage-bucket
+      Type: String
+      Value: !Ref StorageBucket
+
+  SSMConfigParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/config
+      Type: String
+      Value: "default-value"
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: /image-processing/db-secret
+      Description: "Credentials for Aurora"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "masteruser"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+
+  SecretParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/secret-arn
+      Type: String
+      Value: !Ref Secret
+
+  MainQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-main-queue'
+
+  MainQueueParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/main-queue-url
+      Type: String
+      Value: !Ref MainQueue
+
+  AppEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub '${AWS::StackName}-event-bus'
+
+  AppEventBusParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/event-bus
+      Type: String
+      Value: !Ref AppEventBus
+
+Outputs:
+  StorageBucketName:
+    Value: !Ref StorageBucket
+  SSMConfigParam:
+    Value: !Ref SSMConfigParam
+  SecretArn:
+    Value: !Ref Secret
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretArn"
+  MainQueueUrl:
+    Value: !Ref MainQueue
+  AppEventBusName:
+    Value: !Ref AppEventBus

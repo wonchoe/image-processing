@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Aurora MySQL DB
+
+Parameters:
+  Subnet1Id:
+    Type: String
+  Subnet2Id:
+    Type: String
+  DBSecretArn:
+    Type: String
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for Aurora"
+      SubnetIds:
+        - !Ref Subnet1Id
+        - !Ref Subnet2Id
+
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-mysql
+      EngineMode: provisioned
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DBSecretArn}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecretArn}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: 1
+      StorageEncrypted: false
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DBCluster
+      DBInstanceClass: db.t3.small
+      Engine: aurora-mysql
+      PubliclyAccessible: false
+
+  DBEndpointParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/db-endpoint
+      Type: String
+      Value: !GetAtt DBCluster.Endpoint.Address
+
+  DBSecretArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/db-secret-arn
+      Type: String
+      Value: !Ref DBSecretArn
+
+Outputs:
+  DBClusterEndpoint:
+    Value: !GetAtt DBCluster.Endpoint.Address
+  DBClusterId:
+    Value: !Ref DBCluster
+  DBSecretArn:
+    Value: !Ref DBSecretArn

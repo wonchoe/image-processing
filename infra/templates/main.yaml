@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Image Processing Main Stack
+
+Resources:
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./vpc.yaml
+
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./storage.yaml
+
+  ECSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./ecs.yaml
+
+  DBStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./db.yaml
+      Parameters:
+        Subnet1Id: !GetAtt VPCStack.Outputs.PrivateSubnet1Id
+        Subnet2Id: !GetAtt VPCStack.Outputs.PrivateSubnet2Id
+        DBSecretArn: !GetAtt StorageStack.Outputs.SecretArn
