@@ -17,7 +17,8 @@ export const handler = async (event) => {
   const paramKeys = [
     '/image-processing/ecs-cluster',
     '/image-processing/task-definition',
-    '/image-processing/subnet-ids'
+    '/image-processing/subnet-ids',
+    '/image-processing/main-queue-url'
   ];
 
   const ssmValues = {};
@@ -52,7 +53,7 @@ export const handler = async (event) => {
     { name: "S3_BUCKET", value: bucket },
     { name: "INPUT_KEY", value: key },
     { name: "AWS_REGION", value: region },
-    { name: "SQS_URL", value: process.env.MAIN_QUEUE_URL || "" }
+    { name: "SQS_URL", value: ssmValues['/image-processing/main-queue-url'] }
   ];
 
   console.log("🧬 Container ENV:", env);
