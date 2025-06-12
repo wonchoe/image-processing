@@ -44,3 +44,15 @@ jobs:
 
       - name: Clean up zip
         run: rm lambda.zip
+
+      - name: Update Lambda function code if exists
+        run: |
+          if aws lambda get-function --function-name image-processing-worker; then
+            echo "Lambda function exists. Updating..."
+            aws lambda update-function-code \
+              --function-name image-processing-worker \
+              --s3-bucket "$BUCKET_NAME" \
+              --s3-key "$ZIP_KEY"
+          else
+            echo "Lambda function does not exist. Skipping update."
+          fi
