@@ -12,6 +12,8 @@ export const handler = async (event) => {
   const ssm = new SSMClient({ region });
   const ecs = new ECSClient({ region });
 
+  console.log("📦 Incoming event:", JSON.stringify(event, null, 2));
+
   const paramKeys = [
     '/image-processing/ecs-cluster',
     '/image-processing/task-definition',
@@ -24,10 +26,27 @@ export const handler = async (event) => {
     ssmValues[key] = response.Parameter?.Value;
   }
 
-  const message = event.Records[0];
-  const payload = JSON.parse(message.body);
-  const key = payload.detail.object.key;
-  const bucket = payload.detail.bucket.name;
+  console.log("📄 Retrieved SSM values:", ssmValues);
+
+  let payload = {};
+  let key = "";
+  let bucket = "";
+
+  try {
+    const message = event.Records?.[0];
+    payload = JSON.parse(message.body);
+    key = payload.detail?.object?.key || "";
+    bucket = payload.detail?.bucket?.name || "";
+  } catch (err) {
+    console.error("❌ Failed to parse payload:", err);
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Invalid SQS payload" })
+    };
+  }
+
+  console.log("🧾 S3 Key:", key);
+  console.log("🪣 Bucket:", bucket);
 
   const env = [
     { name: "S3_BUCKET", value: bucket },
@@ -36,33 +55,41 @@ export const handler = async (event) => {
     { name: "SQS_URL", value: process.env.MAIN_QUEUE_URL || "" }
   ];
 
-  const runTask = await ecs.send(new RunTaskCommand({
-    cluster: ssmValues['/image-processing/ecs-cluster'],
-    taskDefinition: ssmValues['/image-processing/task-definition'],
-    launchType: "FARGATE",
-    networkConfiguration: {
-      awsvpcConfiguration: {
-        subnets: ssmValues['/image-processing/subnet-ids'].split(','),
-        assignPublicIp: "ENABLED"
-      }
-    },
-    overrides: {
-      containerOverrides: [
-        {
-          name: "worker",
-          environment: env
+  console.log("🧬 Container ENV:", env);
+
+  try {
+    const runTask = await ecs.send(new RunTaskCommand({
+      cluster: ssmValues['/image-processing/ecs-cluster'],
+      taskDefinition: ssmValues['/image-processing/task-definition'],
+      launchType: "FARGATE",
+      networkConfiguration: {
+        awsvpcConfiguration: {
+          subnets: ssmValues['/image-processing/subnet-ids'].split(','),
+          assignPublicIp: "ENABLED"
         }
-      ]
-    }
-  }));
+      },
+      overrides: {
+        containerOverrides: [
+          {
+            name: "worker",
+            environment: env
+          }
+        ]
+      }
+    }));
 
-  console.log("Task started:", runTask.tasks?.[0]?.taskArn);
+    console.log("🚀 Task started:", runTask.tasks?.[0]?.taskArn);
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ task: runTask.tasks?.[0]?.taskArn })
-  };
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ task: runTask.tasks?.[0]?.taskArn })
+    };
+
+  } catch (err) {
+    console.error("❌ Failed to run ECS task:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Failed to start ECS task", detail: err.message })
+    };
+  }
 };
-
-
-//
