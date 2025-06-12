@@ -58,6 +58,13 @@ Resources:
               awslogs-stream-prefix: worker
           Essential: true
           Environment: [] # буде передано override через Lambda
+  
+  TaskDefinitionParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/task-definition
+      Type: String
+      Value: !Ref TaskDefinition
 
 Outputs:
   TaskDefinitionArn:

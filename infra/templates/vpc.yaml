@@ -28,6 +28,14 @@ Resources:
       CidrBlock: 10.0.2.0/24
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
 
+  SubnetIdsParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/subnet-ids
+      Type: StringList
+      Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ] ]
+
+
 Outputs:
   VPCId:
     Value: !Ref VPC
