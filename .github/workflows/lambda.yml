@@ -1,0 +1,46 @@
+name: Upload Lambda to S3
+
+on:
+  push:
+    paths:
+      - 'lambda/**'
+
+jobs:
+  upload-lambda-code:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      BUCKET_NAME: image-processing-lambda-code-${{ secrets.AWS_ACCOUNT_ID }}
+      ZIP_KEY: lambda/image-processing.zip
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure Lambda bucket exists
+        run: |
+          if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>&1 | grep 'Not Found'; then
+            echo "Creating S3 bucket: $BUCKET_NAME"
+            aws s3 mb s3://$BUCKET_NAME --region $AWS_REGION
+          else
+            echo "Bucket already exists: $BUCKET_NAME"
+          fi
+
+      - name: Zip Lambda code
+        run: |
+          cd lambda
+          zip -r ../lambda.zip .
+          cd ..
+
+      - name: Upload Lambda zip to S3
+        run: aws s3 cp lambda.zip s3://$BUCKET_NAME/$ZIP_KEY
+
+      - name: Clean up zip
+        run: rm lambda.zip
