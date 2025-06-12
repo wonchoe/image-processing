@@ -113,7 +113,9 @@ Outputs:
     Value: !Ref Secret
     Export:
       Name: !Sub "${AWS::StackName}-SecretArn"
-  MainQueueUrl:
-    Value: !Ref MainQueue
+  MainQueueArn:
+    Value: !GetAtt MainQueue.Arn
+    Export:
+      Name: ImageProcessingQueueArn
   AppEventBusName:
     Value: !Ref AppEventBus

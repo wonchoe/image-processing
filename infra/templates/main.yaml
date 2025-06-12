@@ -17,6 +17,11 @@ Resources:
     Properties:
       TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/ecs.yaml
 
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/lambda.yaml
+
   DBStack:
     Type: AWS::CloudFormation::Stack
     Properties:

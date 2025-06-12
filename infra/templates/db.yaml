@@ -29,6 +29,8 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       BackupRetentionPeriod: 1
       StorageEncrypted: false
+      VpcSecurityGroupIds:
+        - !ImportValue Vpc-stack-ContainerSGId
 
   DBInstance:
     Type: AWS::RDS::DBInstance

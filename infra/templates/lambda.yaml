@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda stack for image-processing pipeline
+
+Parameters:
+  LambdaZipKey:
+    Type: String
+    Default: lambda/image-processing.zip
+
+Resources:
+
+  ImageProcessingFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: image-processing-worker
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs20.x
+      Timeout: 30
+      MemorySize: 256
+      Code:
+        S3Bucket: !Sub image-processing-lambda-code-${AWS::AccountId}
+        S3Key: !Ref LambdaZipKey
+      Environment:
+        Variables:
+          PARAM_PREFIX: /image-processing
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: image-processing-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: image-processing-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ecs:RunTask
+                  - iam:PassRole
+                  - secretsmanager:GetSecretValue
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !ImportValue ImageProcessingQueueArn
+
+  LambdaSQSTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref ImageProcessingFunction
+      EventSourceArn: !ImportValue ImageProcessingQueueArn
+      BatchSize: 1
+      Enabled: true
+
+Outputs:
+  LambdaFunctionName:
+    Value: !Ref ImageProcessingFunction
+    Export:
+      Name: ImageProcessingLambdaName
