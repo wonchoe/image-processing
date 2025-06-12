@@ -32,7 +32,7 @@ jobs:
       - name: Build, tag, and push image to ECR
         env:
           ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-          IMAGE_NAME: local-pipeline-worker
+          IMAGE_NAME: image-processing
         run: |
           docker build -t $ECR_REGISTRY/$IMAGE_NAME:latest .
           docker push $ECR_REGISTRY/$IMAGE_NAME:latest
