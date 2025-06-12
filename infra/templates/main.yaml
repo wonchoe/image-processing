@@ -5,22 +5,22 @@ Resources:
   VPCStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./vpc.yaml
+      TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/vpc.yaml
 
   StorageStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./storage.yaml
+      TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/storage.yaml
 
   ECSStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./ecs.yaml
+      TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/ecs.yaml
 
   DBStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./db.yaml
+      TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/db.yaml
       Parameters:
         Subnet1Id: !GetAtt VPCStack.Outputs.PrivateSubnet1Id
         Subnet2Id: !GetAtt VPCStack.Outputs.PrivateSubnet2Id

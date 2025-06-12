@@ -5,9 +5,11 @@ Resources:
   StorageBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${AWS::StackName}-${AWS::Region}-${AWS::AccountId}-data'
       VersioningConfiguration:
         Status: Enabled
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
 
   StorageBucketParam:
     Type: AWS::SSM::Parameter
@@ -53,6 +55,20 @@ Resources:
       Type: String
       Value: !Ref MainQueue
 
+  MainQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [ !Ref MainQueue ]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: "sqs:SendMessage"
+            Resource: !GetAtt MainQueue.Arn
+
+
   AppEventBus:
     Type: AWS::Events::EventBus
     Properties:
@@ -65,7 +81,30 @@ Resources:
       Type: String
       Value: !Ref AppEventBus
 
+  S3ToSQSRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${AWS::StackName}-s3-to-sqs-rule'
+      EventBusName: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        resources:
+          - !GetAtt StorageBucket.Arn
+        detail:
+          object:
+            key:
+              - { "prefix": "input/" }
+      Targets:
+        - Arn: !GetAtt MainQueue.Arn
+          Id: "MainQueueTarget"
+
+
 Outputs:
+  DefaultBusArn:
+    Value: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
   StorageBucketName:
     Value: !Ref StorageBucket
   SSMConfigParam:

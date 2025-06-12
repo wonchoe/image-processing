@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Presigned URL generator for direct S3 upload
+
+Parameters:
+  StorageBucketParam:
+    Type: String
+    Default: "/image-processing/storage-bucket"
+
+Resources:
+  GeneratePresignedUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: generate-presigned-url.generatePresignedUrlHandler
+      Runtime: nodejs20.x
+      CodeUri: src/handlers/
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          BUCKET_PARAM: !Ref StorageBucketParam
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${StorageBucketParam}"
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+              Resource: "arn:aws:s3:::*"
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /generate-upload-url
+            Method: post
+
+Outputs:
+  GenerateUploadUrlApi:
+    Description: "API Gateway endpoint URL for generating presigned URLs"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/generate-upload-url"
