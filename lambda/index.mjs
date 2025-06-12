@@ -6,11 +6,16 @@ import {
   ECSClient,
   RunTaskCommand
 } from "@aws-sdk/client-ecs";
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand
+} from "@aws-sdk/client-secrets-manager";
 
 export const handler = async (event) => {
   const region = process.env.AWS_REGION || 'us-east-1';
   const ssm = new SSMClient({ region });
   const ecs = new ECSClient({ region });
+  const secrets = new SecretsManagerClient({ region });
 
   console.log("📦 Incoming event:", JSON.stringify(event, null, 2));
 
@@ -49,11 +54,34 @@ export const handler = async (event) => {
   console.log("🧾 S3 Key:", key);
   console.log("🪣 Bucket:", bucket);
 
+  // 📥 Get DB credentials from SecretsManager
+  let dbEnv = [];
+  try {
+    const secretResp = await secrets.send(new GetSecretValueCommand({
+      SecretId: process.env.DB_SECRET_ARN
+    }));
+    const secret = JSON.parse(secretResp.SecretString || "{}");
+
+    dbEnv = [
+      { name: "MYSQL_HOST", value: secret.host },
+      { name: "MYSQL_USER", value: secret.username },
+      { name: "MYSQL_PASSWORD", value: secret.password },
+      { name: "MYSQL_DATABASE", value: secret.dbname || secret.database || "default" }
+    ];
+  } catch (err) {
+    console.error("❌ Failed to retrieve DB secret:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Unable to get DB credentials", detail: err.message })
+    };
+  }
+
   const env = [
     { name: "S3_BUCKET", value: bucket },
     { name: "INPUT_KEY", value: key },
     { name: "AWS_REGION", value: region },
-    { name: "SQS_URL", value: ssmValues['/image-processing/main-queue-url'] }
+    { name: "SQS_URL", value: ssmValues['/image-processing/main-queue-url'] },
+    ...dbEnv
   ];
 
   console.log("🧬 Container ENV:", env);
