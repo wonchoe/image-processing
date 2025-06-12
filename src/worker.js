@@ -55,12 +55,28 @@ function randomTags() {
 
 async function saveToDB(dbConfig, data) {
   const conn = await mysql.createConnection(dbConfig);
+
+  // Перевірка і створення таблиці
+  await conn.execute(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      image_url VARCHAR(255),
+      title VARCHAR(100),
+      text TEXT,
+      tags VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Запис посту
   await conn.execute(
     'INSERT INTO posts (image_url, title, text, tags, created_at) VALUES (?, ?, ?, ?, NOW())',
     [data.url, data.title, data.text, data.tags]
   );
+
   await conn.end();
 }
+
 
 async function main() {
   try {
@@ -70,6 +86,13 @@ async function main() {
       password: process.env.MYSQL_PASSWORD,
       database: process.env.MYSQL_DATABASE
     };
+
+  console.log("🔧 DB config:", {
+    host: process.env.MYSQL_HOST,
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASSWORD,
+    database: process.env.MYSQL_DATABASE
+  });
 
     const inputBucket = process.env.S3_BUCKET;
     const outputBucket = process.env.OUTPUT_BUCKET || inputBucket;
@@ -97,7 +120,7 @@ async function main() {
           tags: randomTags()
         };
 
-       // await saveToDB(dbConfig, post);
+        await saveToDB(dbConfig, post);
         await deleteMessage(msg.ReceiptHandle);
 
         console.log("Processed:", post);
