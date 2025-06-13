@@ -6,14 +6,11 @@ import { randomBytes } from 'crypto';
 
 dotenv.config();
 
+console.log("✅ Container started at the beggining");
 // ENV VARS: QUEUE_URL, BUCKET, OUTPUT_BUCKET, DB_HOST, DB_USER, DB_PASS, DB_NAME
 console.log('SQS_URL:', process.env.SQS_URL);
 const sqs = new AWS.SQS({ region: process.env.AWS_REGION });
 const s3 = new AWS.S3({
-  endpoint: 'http://host.docker.internal:4566',
-  s3ForcePathStyle: true, // критично для LocalStack
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION
 });
 
@@ -56,6 +53,7 @@ function randomTags() {
 async function saveToDB(dbConfig, data) {
   const conn = await mysql.createConnection(dbConfig);
 
+  await conn.query("CREATE DATABASE IF NOT EXISTS imageprocessing");
   // Перевірка і створення таблиці
   await conn.execute(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -79,6 +77,7 @@ async function saveToDB(dbConfig, data) {
 
 
 async function main() {
+  console.log("✅ Container started");
   try {
     const dbConfig = {
       host: process.env.MYSQL_HOST,
