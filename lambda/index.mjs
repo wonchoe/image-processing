@@ -58,8 +58,9 @@ export const handler = async (event) => {
   // 📥 Get DB credentials from SecretsManager
   let dbEnv = [];
   try {
+    console.log(ssmValues['/image-processing/db-secret-arn']);
     const secretResp = await secrets.send(new GetSecretValueCommand({
-      SecretId: process.env.DB_SECRET_ARN
+      SecretId: ssmValues['/image-processing/db-secret-arn']
     }));
     const secret = JSON.parse(secretResp.SecretString || "{}");
 
