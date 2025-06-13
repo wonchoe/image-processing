@@ -15,7 +15,6 @@ process.on('uncaughtException', (err) => {
   console.error('💥 Uncaught exception:', err);
 });
 
-const sqs = new AWS.SQS({ region: process.env.AWS_REGION });
 const s3 = new AWS.S3({ region: process.env.AWS_REGION });
 
 function randomText(len) {
@@ -25,32 +24,6 @@ function randomText(len) {
 function randomTags() {
   const tags = ['nature', 'city', 'car', 'cat', 'dog', 'fun', 'meme', 'cloud', 'ai', 'game', 'art', 'random'];
   return Array.from({ length: 3 }, () => tags[Math.floor(Math.random() * tags.length)]).join(',');
-}
-
-async function getMessages() {
-  console.log("📥 SQS message requested");
-  const resp = await sqs.receiveMessage({
-    QueueUrl: process.env.SQS_URL,
-    MaxNumberOfMessages: 1,
-    WaitTimeSeconds: 20
-  }).promise();
-
-  if (resp.Messages?.length) {
-    console.log("📭 SQS message received");
-  } else {
-    console.log("📭 No messages received");
-  }
-
-  return resp.Messages || [];
-}
-
-async function deleteMessage(receiptHandle) {
-  console.log("🧹 Deleting SQS message");
-  await sqs.deleteMessage({
-    QueueUrl: process.env.SQS_URL,
-    ReceiptHandle: receiptHandle
-  }).promise();
-  console.log("🧹 Message deleted");
 }
 
 async function resizeAndUpload(s3bucket, key, outBucket, outKey) {
@@ -96,8 +69,8 @@ async function saveToDB(dbConfig, data) {
 
 async function main() {
   console.log("🔧 ENVIRONMENT LOADED");
-  console.log("SQS_URL:", process.env.SQS_URL);
   console.log("S3_BUCKET:", process.env.S3_BUCKET);
+  console.log("INPUT_KEY:", process.env.INPUT_KEY);
   console.log("REGION:", process.env.AWS_REGION);
 
   try {
@@ -111,46 +84,29 @@ async function main() {
     console.log("🔧 DB config:", dbConfig);
 
     const inputBucket = process.env.S3_BUCKET;
+    const key = process.env.INPUT_KEY;
     const outputBucket = process.env.OUTPUT_BUCKET || inputBucket;
+    const outKey = `output/${key.split('/').pop()}`;
 
-    const messages = await getMessages();
-    if (!messages.length) {
-      console.log("📭 No messages in queue.");
-      return;
-    }
+    console.log("📦 Payload parsed:", { key, outKey });
 
-    for (const msg of messages) {
-      try {
-        console.log("🧾 Raw message body:", msg.Body);
-        const payload = JSON.parse(msg.Body);
-        const key = payload.detail?.object?.key;
-        const base = key?.split('/').pop();
-        const outKey = `output/${base}`;
+    await resizeAndUpload(inputBucket, key, outputBucket, outKey);
 
-        console.log("📦 Payload parsed:", { key, outKey });
+    const post = {
+      url: `https://${outputBucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${outKey}`,
+      title: "Post " + randomText(4),
+      text: "Generated text: " + randomText(12),
+      tags: randomTags()
+    };
 
-        await resizeAndUpload(inputBucket, key, outputBucket, outKey);
+    await saveToDB(dbConfig, post);
 
-        const post = {
-          url: `https://${outputBucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${outKey}`,
-          title: "Post " + randomText(4),
-          text: "Generated text: " + randomText(12),
-          tags: randomTags()
-        };
-
-        await saveToDB(dbConfig, post);
-        await deleteMessage(msg.ReceiptHandle);
-
-        console.log("✅ Processed:", post);
-      } catch (err) {
-        console.error("❌ Error processing message:", err);
-      }
-    }
+    console.log("✅ Processed:", post);
   } catch (e) {
     console.error("💥 Fatal error:", e);
   } finally {
     console.log("⏹ Task finished. Exiting...");
-    await new Promise((res) => setTimeout(res, 3000)); // дати CloudWatch часу дописати лог
+    await new Promise((res) => setTimeout(res, 3000));
     process.exit(0);
   }
 }
