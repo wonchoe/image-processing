@@ -30,7 +30,7 @@ Resources:
       BackupRetentionPeriod: 1
       StorageEncrypted: false
       VpcSecurityGroupIds:
-        - !ImportValue Vpc-stack-ContainerSGId
+        - !ImportValue "VPCStack-SecurityGroup"
 
   DBInstance:
     Type: AWS::RDS::DBInstance

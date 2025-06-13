@@ -52,16 +52,21 @@ Resources:
       Type: StringList
       Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ] ]
 
-  EndpointSG:
+  SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow VPC internal HTTPS access
+      GroupDescription: ECS task access to Aurora
       VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Ref VpcCIDR
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  SGParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/sg
+      Type: String
+      Value: !Ref SecurityGroup
 
   VPCEndpointS3:
     Type: AWS::EC2::VPCEndpoint
@@ -72,6 +77,17 @@ Resources:
         - !Ref PrivateRouteTable
       VpcEndpointType: Gateway
 
+  VPCEndpointSQSSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow VPC internal HTTPS access
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCIDR
+
   VPCEndpointSQS:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -81,7 +97,7 @@ Resources:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
       SecurityGroupIds:
-        - !Ref EndpointSG
+        - !Ref VPCEndpointSQSSG
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
 
@@ -100,3 +116,8 @@ Outputs:
     Value: !Ref PrivateSubnet2
     Export:
       Name: !Sub "${AWS::StackName}-PrivateSubnet2Id"
+  
+  SecurityGroupId:
+    Value: !Ref SecurityGroup
+    Export:
+      Name: !Sub "VPCStack-SecurityGroup"

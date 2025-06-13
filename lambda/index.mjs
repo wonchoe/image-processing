@@ -12,12 +12,13 @@ import {
 } from "@aws-sdk/client-secrets-manager";
 
 export const handler = async (event) => {
+  
+  console.log("📦 Incoming event:", JSON.stringify(event, null, 2));
+
   const region = process.env.AWS_REGION || 'us-east-1';
   const ssm = new SSMClient({ region });
   const ecs = new ECSClient({ region });
   const secrets = new SecretsManagerClient({ region });
-
-  console.log("📦 Incoming event:", JSON.stringify(event, null, 2));
 
   const paramKeys = [
     '/image-processing/ecs-cluster',

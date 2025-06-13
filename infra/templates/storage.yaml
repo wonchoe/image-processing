@@ -68,7 +68,6 @@ Resources:
             Action: "sqs:SendMessage"
             Resource: !GetAtt MainQueue.Arn
 
-
   AppEventBus:
     Type: AWS::Events::EventBus
     Properties:

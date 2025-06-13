@@ -19,6 +19,7 @@ Resources:
 
   LambdaStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: StorageStack
     Properties:
       TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/lambda.yaml
 

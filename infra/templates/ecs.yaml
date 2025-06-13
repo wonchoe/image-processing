@@ -1,123 +1,74 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: VPC + Private Subnets for image-processing
-
-Parameters:
-  VpcCIDR:
-    Type: String
-    Default: 10.0.0.0/16
+Description: ECS Cluster + Role
 
 Resources:
-  VPC:
-    Type: AWS::EC2::VPC
+  Cluster:
+    Type: AWS::ECS::Cluster
     Properties:
-      CidrBlock: !Ref VpcCIDR
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
+      ClusterName: !Sub '${AWS::StackName}-cluster'
 
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [ 1, !GetAZs '' ]
-
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-
-  Subnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet1
-
-  Subnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet2
-
-  SubnetIdsParam:
+  ECSClusterParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: /image-processing/subnet-ids
-      Type: StringList
-      Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ] ]
-
-  EndpointSG:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow VPC internal HTTPS access
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Ref VpcCIDR
-
-  ContainerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: ECS task access to Aurora
-      VpcId: !Ref VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-  ContainerSGParam:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: /image-processing/container-sg
+      Name: /image-processing/ecs-cluster
       Type: String
-      Value: !Ref ContainerSecurityGroup
+      Value: !Ref Cluster
 
-  VPCEndpointS3:
-    Type: AWS::EC2::VPCEndpoint
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
     Properties:
-      VpcId: !Ref VPC
-      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
-      RouteTableIds:
-        - !Ref PrivateRouteTable
-      VpcEndpointType: Gateway
+      RoleName: !Sub '${AWS::StackName}-ecs-task-execution'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonSQSFullAccess
 
-  VPCEndpointSQS:
-    Type: AWS::EC2::VPCEndpoint
+  TaskLogGroup:
+    Type: AWS::Logs::LogGroup
     Properties:
-      VpcId: !Ref VPC
-      ServiceName: !Sub "com.amazonaws.${AWS::Region}.sqs"
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      SecurityGroupIds:
-        - !Ref EndpointSG
-      VpcEndpointType: Interface
-      PrivateDnsEnabled: true
+      LogGroupName: !Sub '/ecs/${AWS::StackName}-task'
+      RetentionInDays: 3
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${AWS::StackName}-image-processing-task'
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/local-pipeline-worker:latest'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TaskLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+          Essential: true
+          Environment: []
+  
+  TaskDefinitionParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/task-definition
+      Type: String
+      Value: !Ref TaskDefinition
 
 Outputs:
-  VPCId:
-    Value: !Ref VPC
-    Export:
-      Name: !Sub "${AWS::StackName}-VPCId"
-
-  PrivateSubnet1Id:
-    Value: !Ref PrivateSubnet1
-    Export:
-      Name: !Sub "${AWS::StackName}-PrivateSubnet1Id"
-
-  PrivateSubnet2Id:
-    Value: !Ref PrivateSubnet2
-    Export:
-      Name: !Sub "${AWS::StackName}-PrivateSubnet2Id"
-
-  ContainerSecurityGroupId:
-    Value: !Ref ContainerSecurityGroup
-    Export:
-      Name: !Sub "${AWS::StackName}-ContainerSGId"
+  TaskDefinitionArn:
+    Value: !Ref TaskDefinition
+  ClusterName:
+    Value: !Ref Cluster
+  ECSTaskExecutionRoleArn:
+    Value: !GetAtt ECSTaskExecutionRole.Arn
