@@ -25,7 +25,10 @@ export const handler = async (event) => {
     '/image-processing/task-definition',
     '/image-processing/subnet-ids',
     '/image-processing/main-queue-url',
-    '/image-processing/db-secret-arn'
+    '/image-processing/db-secret-arn',
+    '/image-processing/db-endpoint',
+    '/image-processing/SecurityGroupECS',
+    '/image-processing/subnet-ids'
   ];
 
   const ssmValues = {};
@@ -65,8 +68,10 @@ export const handler = async (event) => {
     }));
     const secret = JSON.parse(secretResp.SecretString || "{}");
 
+    console.log(ssmValues['/image-processing/db-endpoint']);
+
     dbEnv = [
-      { name: "MYSQL_HOST", value: secret.host },
+      { name: "MYSQL_HOST", value: ssmValues['/image-processing/db-endpoint'] },
       { name: "MYSQL_USER", value: secret.username },
       { name: "MYSQL_PASSWORD", value: secret.password },
       { name: "MYSQL_DATABASE", value: secret.dbname || secret.database || "default" }
@@ -96,8 +101,9 @@ export const handler = async (event) => {
       launchType: "FARGATE",
       networkConfiguration: {
         awsvpcConfiguration: {
-          subnets: ssmValues['/image-processing/subnet-ids'].split(','),
-          assignPublicIp: "ENABLED"
+          subnets: ssmValues['/image-processing/subnet-ids'].split(','), 
+          securityGroups: [ssmValues['/image-processing/SecurityGroupECS']],
+          assignPublicIp: "DISABLED"
         }
       },
       overrides: {
