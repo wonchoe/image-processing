@@ -28,7 +28,8 @@ export const handler = async (event) => {
     '/image-processing/db-secret-arn',
     '/image-processing/db-endpoint',
     '/image-processing/SecurityGroupECS',
-    '/image-processing/subnet-ids'
+    '/image-processing/subnet-ids',
+    '/image-processing/db-name'
   ];
 
   const ssmValues = {};
@@ -70,11 +71,13 @@ export const handler = async (event) => {
 
     console.log(ssmValues['/image-processing/db-endpoint']);
 
+    
+
     dbEnv = [
       { name: "MYSQL_HOST", value: ssmValues['/image-processing/db-endpoint'] },
       { name: "MYSQL_USER", value: secret.username },
       { name: "MYSQL_PASSWORD", value: secret.password },
-      { name: "MYSQL_DATABASE", value: secret.dbname || secret.database || "default" }
+      { name: "MYSQL_DATABASE", value: ssmValues['/image-processing/db-name'] || secret.database || "default" }
     ];
   } catch (err) {
     console.error("❌ Failed to retrieve DB secret:", err);
