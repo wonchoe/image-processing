@@ -24,7 +24,8 @@ export const handler = async (event) => {
     '/image-processing/ecs-cluster',
     '/image-processing/task-definition',
     '/image-processing/subnet-ids',
-    '/image-processing/main-queue-url'
+    '/image-processing/main-queue-url',
+    '/image-processing/db-secret-arn'
   ];
 
   const ssmValues = {};
