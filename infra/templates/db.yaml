@@ -8,6 +8,11 @@ Parameters:
     Type: String
   DBSecretArn:
     Type: String
+  DBName:
+    Type: String
+    Default: imageprocessing
+  EC2SecurityGroupId:
+    Type: String
 
 Resources:
   DBSubnetGroup:
@@ -24,13 +29,15 @@ Resources:
       Engine: aurora-mysql
       EngineVersion: 5.7.mysql_aurora.2.12.5
       EngineMode: provisioned
+      DatabaseName: !Ref DBName
       MasterUsername: !Sub '{{resolve:secretsmanager:${DBSecretArn}:SecretString:username}}'
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecretArn}:SecretString:password}}'
       DBSubnetGroupName: !Ref DBSubnetGroup
       BackupRetentionPeriod: 1
       StorageEncrypted: false
       VpcSecurityGroupIds:
-        - !ImportValue "VPCStack-SecurityGroup"
+        - !ImportValue "VPCStack-SecurityGroupDB"
+        - !Ref EC2SecurityGroupId
 
   DBInstance:
     Type: AWS::RDS::DBInstance
@@ -39,6 +46,13 @@ Resources:
       DBInstanceClass: db.t3.small
       Engine: aurora-mysql
       PubliclyAccessible: false
+
+  DBNameParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /image-processing/db-name
+      Type: String
+      Value: !Ref DBName
 
   DBEndpointParam:
     Type: AWS::SSM::Parameter

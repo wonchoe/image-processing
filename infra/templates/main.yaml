@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Image Processing Main Stack
 
 Resources:
+
   VPCStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -25,9 +26,20 @@ Resources:
 
   DBStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: VPCStack
     Properties:
       TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/db.yaml
       Parameters:
         Subnet1Id: !GetAtt VPCStack.Outputs.PrivateSubnet1Id
         Subnet2Id: !GetAtt VPCStack.Outputs.PrivateSubnet2Id
         DBSecretArn: !GetAtt StorageStack.Outputs.SecretArn
+        EC2SecurityGroupId: !GetAtt VPCStack.Outputs.EC2SecurityGroupId
+
+  EC2Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VPCStack
+    Properties:
+      TemplateURL: https://s3.us-east-1.amazonaws.com/cursor.style/ec2.yaml
+      Parameters:
+        PublicSubnet1Id: !GetAtt VPCStack.Outputs.PublicSubnet1Id
+        EC2SecurityGroupId: !GetAtt VPCStack.Outputs.EC2SecurityGroupId

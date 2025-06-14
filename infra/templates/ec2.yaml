@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 instance with Node.js that connects to Aurora and serves data
+
+Parameters:
+  PublicSubnet1Id:
+    Type: String
+    Description: Public subnet for EC2 instance
+  EC2SecurityGroupId:
+    Type: String
+    Description: Security group for EC2 instance
+  UniqueId:
+    Type: String
+    Default: v4
+
+Resources:
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: AllowSecretsAndParams
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - arn:aws:ssm:*:*:parameter/image-processing/*
+                  - arn:aws:secretsmanager:*:*:secret:/image-processing/db-secret*
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  WebEC2InstanceV4:
+    Type: AWS::EC2::Instance
+    UpdateReplacePolicy: Delete
+    Properties:
+      InstanceType: t3.small
+      SubnetId: !Ref PublicSubnet1Id
+      ImageId: ami-0c101f26f147fa7fd
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroupId
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      Tags:
+        - Key: Name
+          Value: WebNodeApp
+        - Key: ForceUpdate
+          Value: !Sub "${AWS::StackName}-redeploy-${UniqueId}"
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          dnf install -y gcc-c++ make git jq
+          curl -sL https://rpm.nodesource.com/setup_18.x | bash -
+          dnf install -y nodejs
+
+          mkdir -p /app && cd /app
+
+          # Створюємо Node.js файл
+          cat > index.js <<'EOF'
+          require('dotenv').config();
+          const express = require('express');
+          const mysql = require('mysql2');
+          const app = express();
+          const port = 8080;
+
+          const connection = mysql.createConnection({
+            host: process.env.DB_HOST,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASS,
+            database: process.env.DB_NAME,
+          });
+
+          app.get('/', (req, res) => {
+            connection.query('SELECT * FROM posts ORDER BY id DESC LIMIT 1', (err, results) => {
+              if (err) return res.send('DB error: ' + err);
+              if (results.length === 0) return res.send('No posts found');
+              const post = results[0];
+              res.send(`<h1>Post ${post.id}</h1><p>${post.text}</p><img src="${post.image_url}" width="300"/>`);
+            });
+          });
+
+          app.listen(port, '0.0.0.0', () => console.log('Server running'));
+          EOF
+
+          # Завантажуємо параметри з SSM і Secret Manager
+          DB_HOST=$(aws ssm get-parameter --name "/image-processing/db-endpoint" --region us-east-1 --query Parameter.Value --output text)
+          DB_NAME=$(aws ssm get-parameter --name "/image-processing/db-name" --region us-east-1 --query Parameter.Value --output text)
+          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "/image-processing/db-secret" --region us-east-1 --query SecretString --output text)
+          DB_USER=$(echo $SECRET_JSON | jq -r '.username')
+          DB_PASS=$(echo $SECRET_JSON | jq -r '.password')
+
+          # Створюємо .env
+          cat > .env <<EOF
+          DB_HOST=$DB_HOST
+          DB_NAME=$DB_NAME
+          DB_USER=$DB_USER
+          DB_PASS=$DB_PASS
+          EOF
+
+          # Встановлюємо залежності та запускаємо
+          npm install express mysql2 dotenv
+          node index.js &
